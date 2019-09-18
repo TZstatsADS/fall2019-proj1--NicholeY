@@ -1,0 +1,225 @@
+---
+title: "Data Story Exploration"
+author: "Nichole"
+date: "9/17/2019"
+output: html_document
+---
+```{r}
+load('../output/processed_lyrics.RData')
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(RColorBrewer)
+darkcols <- brewer.pal(12, "Paired")
+
+packages.used=c("rvest", "tibble", "qdap", 
+                "sentimentr", "gplots", "dplyr",
+                "tm", "syuzhet", "factoextra", 
+                "beeswarm", "scales", "RColorBrewer",
+                "RANN", "tm", "topicmodels")
+
+# check packages that need to be installed.
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+# install additional packages
+if(length(packages.needed)>0){
+  install.packages(packages.needed, dependencies = TRUE)
+}
+
+# load packages
+library("rvest")
+library("tibble")
+
+library("qdap")
+library("sentimentr")
+library("gplots")
+library("dplyr")
+library("tm")
+library("syuzhet")
+library("factoextra")
+library("beeswarm")
+library("scales")
+library("RColorBrewer")
+library("RANN")
+library("tm")
+library("topicmodels")
+library(rJava)
+```
+```{r warning=FALSE}
+# there are two songs that are created at year 112, 702, doesn't really make sense, so remove them
+dt_lyrics<-dt_lyrics%>%
+  filter(year>1000)
+
+ggplot(dt_lyrics,aes(x=year,fill = factor(ifelse(year==2006,"Highlighted","Normal"))))+
+  geom_bar(stat="count",show.legend = FALSE)+
+  scale_fill_manual(values=c("firebrick4","grey50"))+
+  theme_bw()+
+  geom_label(aes(label = year),stat="count",hjust = +1.5,show.legend = FALSE,col="white")+
+  labs(title="Total Number of Songs Over Years", y="Number of Songs",x="Year")
+```
+```{r}
+ggplot(aes( x = year, fill = genre),data = dt_lyrics)+
+  geom_bar(stat = "count")+ 
+  scale_fill_manual(values = darkcols[1:12])+
+  theme_bw()+
+  labs(title="Genres Distrubution Over Years", y="Number of Songs",x="Year")
+```
+```{r}
+rock <-dt_lyrics%>%
+  filter(genre == "Rock")
+
+rock_artist<-rock%>%
+  group_by(artist)%>%
+  summarise(N=n(),
+            average=mean(lyricLength))%>%
+  arrange(desc(N))
+```
+
+```{r}
+rock_artist
+
+nrow(rock)
+nrow(rock_artist)
+```
+```{r}
+eltonjohn <- dt_lyrics%>%
+  filter(artist == "elton-john")
+
+ggplot(eltonjohn,aes(x=year,fill = factor(ifelse(year==2006,"Highlighted","Normal"))))+
+  geom_bar(stat="count",show.legend = FALSE)+
+  scale_fill_manual(values=c("firebrick4","grey50"))+
+  theme_bw()+
+  geom_label(aes(label = year),stat="count",hjust = +1.5,show.legend = FALSE,col="white")+
+  labs(title="Songs by Elton John Over Years", y="Number of Songs",x="Year")
+
+```
+
+```{r}
+list<-c(rock_artist$artist[1:10])
+artists <- dt_lyrics%>%
+  filter(artist %in% list)
+artists_2<- artists%>%
+  group_by(artist,year)%>%
+  summarise(N=n(),
+            average=mean(lyricLength))
+
+ggplot(aes(x = year, y=average, col = artist),data = artists_2)+
+   geom_smooth(se=FALSE)
+ 
+
+```
+
+```{r}
+genres<-dt_lyrics%>%
+  group_by(genre,year)%>%
+  summarise(N=n())%>%
+  arrange(desc(N))
+
+ggplot(aes(x = year, y=N, col = genre),data = genres)+
+   geom_line()+ 
+  scale_color_manual(values = darkcols[1:12])
+
+dt_lyrics$lyricLength<-NA
+for(i in 1:nrow(dt_lyrics)){
+  dt_lyrics$lyricLength[i]<<-nchar(dt_lyrics$stemmedwords[i])
+}
+
+lyriclength<-dt_lyrics%>%
+  group_by(year)%>%
+  summarise(N=n(),
+            average=mean(lyricLength))
+
+rock_lyriclength<-rock%>%
+  group_by(year)%>%
+  summarise(N=n(),
+            average=mean(lyricLength))
+
+ggplot(dt_lyrics,aes(x=year,y= lyricLength))+
+  geom_bar(aes(, fill = factor(ifelse(year==2006,"Highlighted","Normal"))),stat = "identity",show.legend = FALSE)+
+  geom_line()+
+  scale_fill_manual(values=c("firebrick4","grey50"))+
+  theme_bw()+
+  labs(title="Total Number of Songs Over Years", y="Number of Songs",x="Year")
+  
+
+  
+ggplot(lyriclength, aes(x=year, y = average))+
+  geom_smooth(se=FALSE)
+
+ggplot(rock_lyriclength, aes(x=year, y = average))+
+  geom_line(col = "firebrick4")+
+  theme_bw()+
+  geom_point(x=2006, y=rock_lyriclength$average[38],col= "grey50")+
+  geom_label(x=2006,y=rock_lyriclength$average[38],label = "2006",vjust = +1.5)
+  
+ggplot(rock_lyriclength, aes(x=year, y = N))+
+  geom_line(col = "firebrick4")+
+  theme_bw()+
+  geom_point(x=2006, y=rock_lyriclength$N[38],col= "grey50")+
+  geom_label(x=2006,y=rock_lyriclength$N[38],label = "2006",vjust = +1.5)
+
+
+
+
+
+#Rock
+
+#Pop
+
+#Jazz
+
+#Folk
+```
+
+
+```{r}
+rock_lyrics<- dt_lyrics%>%
+  filter(genre == "Rock")%>%
+  select(stemmedwords)
+
+sentence.list=NULL
+for(i in 1:nrow(rock_lyrics)){
+  sentences=unlist(strsplit(as.character(rock_lyrics[i,])," "),use.names=FALSE)
+  if(length(sentences)>0){
+    emotions=get_nrc_sentiment(sentences)
+    word.count=word_count(sentences)
+    # colnames(emotions)=paste0("emo.", colnames(emotions))
+    # in case the word counts are zeros?
+    emotions=diag(1/(word.count+0.01))%*%as.matrix(emotions)
+    sentence.list=rbind(sentence.list, 
+                        cbind(#rock_lyrics[i,-ncol(rock_lyrics)],
+                              sentences=as.character(sentences), 
+                              word.count,
+                              emotions,
+                              sent.id=1:length(sentences)
+                              )
+    )
+  }
+}
+
+strsplit(as.character(rock_lyrics[1,])," ")
+sent_detect(rock_lyrics[1,])
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
